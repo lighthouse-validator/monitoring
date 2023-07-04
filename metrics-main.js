@@ -20,6 +20,10 @@ const linkDataCrypto = "https://api.coingecko.com/api/v3/simple/price?ids=bitcan
 let chainData = {}; // дaнные из chain.json
 let assetListData = {}; // дaнные из assetlist.json
 let dataCrypto = {}; // данные из API биржы по нашему токену
+//let oldMsUTC = 0;
+//let oldBlockHeight = 0;
+//let avgTimeBlock = 0;
+//let arrTimeBlock = [];
 
 // Promise
 const execFile = util.promisify(
@@ -151,7 +155,7 @@ async function responseApi(url) {
 setInterval(
 	async () => {
 		dataCrypto = await responseApi(linkDataCrypto);
- 		console.log("dataCrypto:", dataCrypto);
+// 		console.log("dataCrypto:", dataCrypto);
 	},
 	11000 //  <=  sec*1000 // 1800_000 = 30 min
 );
@@ -199,46 +203,27 @@ async function getStaking(chaind) {
 
 async function getSlashing(chaind) {
 	const tmpJson = await execFile(chaind, ['q','slashing','params','-o','json']);
- /*       //console.log("j1:", tmpJson);
-	const slashing = JSON.parse(tmpJson.stdout);
-        //console.log("j2:", slashing);
-        // console.log("j3:", totalSupply.supply.length-1);
-	return slashing;
-*/
-	 return parseJson(tmpJson);
+        //console.log("j1:", tmpJson);
+
+	return parseJson(tmpJson);
 }
 
 async function getMinting(chaind) {
 	const tmpJson = await execFile(chaind, ['q','mint','params','-o','json']);
-  /*      //console.log("j1:", tmpJson);
-	const minting = JSON.parse(tmpJson.stdout);
-        //console.log("j2:", slashing);
-        // console.log("j3:", totalSupply.supply.length-1);
-	return minting;
-*/
-	 return parseJson(tmpJson);
+        //console.log("j1:", tmpJson);
+	return parseJson(tmpJson);
 }
 
 async function getDistribution(chaind) {
 	const tmpJson = await execFile(chaind, ['q','distribution','params','-o','json']);
-    /*    //console.log("j1:", tmpJson);
-	const distrib = JSON.parse(tmpJson.stdout);
-        //console.log("j2:", slashing);
-        // console.log("j3:", totalSupply.supply.length-1);
-	return distrib;
-*/
-	 return parseJson(tmpJson);
+	//console.log("j1:", tmpJson);
+	return parseJson(tmpJson);
 }
 
 async function getGov(chaind) {
 	const tmpJson = await execFile(chaind, ['q','gov','params','-o','json']);
-/*        //console.log("j1:", tmpJson);
-	const gov = JSON.parse(tmpJson.stdout);
-        //console.log("j2:", slashing);
-        // console.log("j3:", totalSupply.supply.length-1);
-	return gov;
-*/
-	 return parseJson(tmpJson);
+        //console.log("j1:", tmpJson);
+	return parseJson(tmpJson);
 }
 
 
@@ -256,23 +241,7 @@ setInterval(
   //console.log(varStatus);
   const chainId = varStatus.NodeInfo.network;
 
-//  console.log("chainData:", chainData);
-//  let binaryStr = JSON.stringify(chainData.codebase.binaries);
-/*  console.log("length:", Object.keys(chainData.codebase.binaries).length);
-  let binaryStr = "binary"; // = chainData.codebase.binaries;  
-  let i = 0;
-  for (let key in chainData.codebase.binaries ) {
-	i++;
-	binaryStr += i + "=\"" + chainData.codebase.binaries[key]+"\""; 
-	if (i < Object.keys(chainData.codebase.binaries).length) { binaryStr += ", binary";}
-  }
-*/
-/*  let feeStr = ""; // = chainData.codebase.binaries;  
-  let feetmp = chainData.fees.fee_tokens[0];
-  for (let key in feetmp) {
-	feeStr += key + " = " + feetmp[key] + ",\n"; 
-  }
-*/
+
   let exponent = assetListData.assets[0].denom_units[assetListData.assets[0].denom_units.length-1].exponent;
   str("# HELP node_chain_info Chain Info");
   str(`# TYPE node_chain_info gauge`);	
@@ -297,7 +266,8 @@ setInterval(
 	title="GitHub Repo", link="${chainData.codebase.git_repo}"} 1`);
  str(`node_chain_info_links{chain_id="${chainId}",\
 	title="Genesis URL", link="${chainData.codebase.genesis.genesis_url}"} 1`);
-
+ str(`node_chain_info_links{chain_id="${chainId}",\
+	title="Chain Registry", link="${linkChain}"} 1`);
 
 
   for (let key in chainData.codebase.binaries ) {
@@ -305,15 +275,7 @@ setInterval(
 	str(`node_chain_info_binaries{chain_id="${chainId}", adc="${key}", binary="${chainData.codebase.binaries[key]}"} 1`);
   }
 
-//	 fee="${JSON.stringify(chainData.fees.fee_tokens[0])}",\
 
-
-//  let feeStr = ""; // = chainData.codebase.binaries;  
-/*  let feetmp = chainData.fees.fee_tokens[0];
-  for (let key in feetmp) {
-	str(`node_chain_info_fees{chain_id="${chainId}", ${key}="${feetmp[key]}"} 1`);
-  }
-*/
   let feeStr = ""; // = chainData.codebase.binaries;  
   let feetmp = chainData.fees.fee_tokens[0];
   let i = 0;
@@ -324,22 +286,6 @@ setInterval(
   }
   str(`node_chain_info_fees{chain_id="${chainId}", ${feeStr}} 1`);
 
-/*str("# HELP node_status Query remote node for status.");
-  str(`# TYPE node_status gauge`);	
-  str(`node_status{chain_id="${chainId}", tendermint_version="${varStatus.NodeInfo.version}", voting_power="${varStatus.ValidatorInfo.VotingPower}"} 1`);
-
-  let varTotalSupply = await getTotalSupply(binaryName);
-  //console.log(varTotalSupply);
-  str("# HELP node_totalSuppy The total supply of coins of the chain.");
-  str(`# TYPE node_totalSupply gauge`);	
-  str(`node_totalSupply{chain_id="${chainId}", network_name="${chainData.pretty_name}", denom="${varTotalSupply.denom}"} ${varTotalSupply.amount}`);
-  
-  let varVersion = await getVersion(binaryName);
-  //console.log(varVersion);
-  str("# HELP node_version Print the application binary version information.");
-  str(`# TYPE node_version gauge`);	
-  str(`node_version{chain_id="${chainId}", binary_name="${binaryName}", name="${varVersion.name}", version="${varVersion.version}", cosmos_sdk="${varVersion.cosmos_sdk_version}" } 1`);
-*/
 
 
 //////////////////////////////////////////////
@@ -530,13 +476,89 @@ setInterval(
         name_param="Voting Period",\
         param="${votingperiod} day(s)"} 1`);
 
-////////////////////////////////////////////////////////////////////////////////// 
-// DataCrypto  - данные по ценам/объемам/процентам
-//  str(`node_num{chain_id="${chainId}",\
-//        i="${i++}",\
-//        param="[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]"} [1,2,3,4,5,6,5,4,3,4,5,6,7,8,9,8,7,2,0]`);
+///////////////////////////////////////////////////////////////////////////
+// DataMarket
+//	dataCrypto ю
+//  console.log("dataCrypto:", dataCrypto);
+  try {
+	  let crypto = Object.keys(dataCrypto)[0];
+	  let ue = Object.keys(dataCrypto[crypto])[0]; 
+	  str("# HELP node_crypto Data of Crypto with Market.");
+	  str(`# TYPE node_crypto gauge`);
 
+  	  for (key in dataCrypto[crypto]) {
+	  str(`node_crypto{chain_id="${chainId}",\
+	        crypto="${crypto}",\
+		ue="${ue}", name="${key}" } ${dataCrypto[crypto][key]}`);
+	  }
+      }
+  catch(err) {
+	console.log("node_crypto err:", err);
+  }
 
+////////////////////////////////////////////////////////////////////////////
+// Height
+//"latest_block_height":"9279202","latest_block_time":"2023-07-04T07:51:00.653355024Z"
+ let blockHeight = varStatus.SyncInfo;
+ let msUTC = Date.parse(blockHeight.latest_block_time);
+ let date = new Date(msUTC);
+
+const options = {
+  hour12: false,
+  year: '2-digit',
+  month: 'short',
+  day: '2-digit',
+  timeZone: 'UTC',
+  timeZoneName:    'short',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit'
+};
+// console.log(date.toLocaleString("en-US",options));
+
+ str("# HELP node_block_height Height of Block.");
+          str(`# TYPE node_block_height counter`);
+          str(`node_block_height{chain_id="${chainId}",\
+                time="${date.toLocaleString('en-US',options)}"} ${blockHeight.latest_block_height}`);
+
+//"earliest_block_height":"9259981","earliest_block_time":"2023-07-03T00:34:47.282765186Z"
+
+///////////////////////////////////////////////////////////////////////////
+// Посчитаем среднее время блока
+
+	let avgTimeBlock = (msUTC - Date.parse(blockHeight.earliest_block_time)) / (blockHeight.latest_block_height - blockHeight.earliest_block_height);
+ str("# HELP node_time_block Time Block");
+          str(`# TYPE node_time_block gauge`);
+          str(`node_time_block{chain_id="${chainId}"} ${avgTimeBlock/1000}`);
+	
+
+//	console.log("avgTimeBlock", avgTimeBlock);
+
+/*
+  if (oldMsUTC != 0 && oldBlockHeight != 0) {
+   let deltaMsUTC = msUTC - oldMsUTC;
+   let deltaBlockHeight = blockHeight.latest_block_height - oldBlockHeight;
+   if (deltaMsUTC > 0 && deltaBlockHeight > 0) { 
+   	let timeBlock = deltaMsUTC / deltaBlockHeight;
+
+        arrTimeBlock.push(timeBlock);
+	let sum = arrTimeBlock.reduce((acc, num) => acc + num, 0);
+	avgTimeBlock = sum/arrTimeBlock.length;
+ 	if (arrTimeBlock.length == 10){
+	        arrTimeBlock.shift();
+	}
+	   console.log("deltaMsUTC",deltaMsUTC);
+	   console.log("deltaBlockHeight",deltaBlockHeight);
+	   console.log("timeBlock",timeBlock);
+	   console.log("avgTimeBlock",avgTimeBlock);
+   }
+
+ }
+   oldMsUTC = msUTC;
+   oldBlockHeight = blockHeight.latest_block_height; 
+*/
+//////////////////////////////////////////////////////////////////////////
+// формируем СТРОКУ, которая пойдет в Прометеус
   outString = str_tmp;
   console.log("outString:\n", outString);
 
@@ -545,6 +567,8 @@ setInterval(
   },
   10000 // 9,7+ sec
 );
+
+
 
 
 
