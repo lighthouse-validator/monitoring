@@ -20,10 +20,8 @@ const linkDataCrypto = "https://api.coingecko.com/api/v3/simple/price?ids=bitcan
 let chainData = {}; // дaнные из chain.json
 let assetListData = {}; // дaнные из assetlist.json
 let dataCrypto = {}; // данные из API биржы по нашему токену
-//let oldMsUTC = 0;
-//let oldBlockHeight = 0;
-//let avgTimeBlock = 0;
-//let arrTimeBlock = [];
+let validators = {}; // данные по валидаторам
+
 
 // Promise
 const execFile = util.promisify(
@@ -160,6 +158,22 @@ setInterval(
 	11000 //  <=  sec*1000 // 1800_000 = 30 min
 );
 
+//////////////////////////////////////////////////////////////////
+// Get Validators
+setTimeout(
+	async () => {
+		validators = await getValidators(chainData.daemon_name);
+	}, 1111 // сначал через ~1 сек прочитаем валидаторов
+);
+setInterval(
+	async () => {
+		validators = await getValidators(chainData.daemon_name);
+// 		console.log("validators:", validators);
+	},
+	19777 //  <=  sec*1000 // 1800_000 = 30 min
+);
+// обрабатываем валидаторов
+
 
 //////////////////////////////////////////////////////////////////
 // Collection of metrics (Сбор метрик)
@@ -178,10 +192,33 @@ function parseJson (tmpjson) {
 	return content;
 }
 
+async function getValidators(chaind) {
+        const tmpJson = await execFile(chaind, ['q','staking','validators','-o','json','--limit','1000000']);
+        return parseJson(tmpJson);
+}
+function getValidatorsParam(valiki) {
+// общее число валидаторов
+	let totalNumValidators = valiki.validators.length;
+// перебираем валидаторы
+	let activeValidators = 0;
+	for(let i = 0; i < totalNumValidators; i++) {
+// считаем валидаторов в активном сете
+		if (valiki.validators[i].status == "BOND_STATUS_BONDED" )
+			activeValidators++;
+	}
+
+////////
+	return { 
+		"totalNumValidators": totalNumValidators,
+		"activeValidators": activeValidators
+	 };
+}
+
 async function getStatus(chaind) {
         const tmpJson = await execFile(chaind, ['status','--log_format','json']);
         return parseJson(tmpJson);
 }
+
 async function getTotalSupply(chaind) {
 	const tmpJson = await execFile(chaind, ['query','bank','total','-o','json']);
         // console.log("j1:", tmpJson);	
@@ -222,6 +259,24 @@ async function getDistribution(chaind) {
 
 async function getGov(chaind) {
 	const tmpJson = await execFile(chaind, ['q','gov','params','-o','json']);
+        //console.log("j1:", tmpJson);
+	return parseJson(tmpJson);
+}
+
+async function getBank(chaind) {
+	const tmpJson = await execFile(chaind, ['q','bank','total','-o','json']);
+        //console.log("j1:", tmpJson);
+	return parseJson(tmpJson);
+}
+
+async function getStakingPool(chaind) {
+	const tmpJson = await execFile(chaind, ['q','staking','pool','-o','json']);
+        //console.log("j1:", tmpJson);
+	return parseJson(tmpJson);
+}
+
+async function getCommunityPool(chaind) {
+	const tmpJson = await execFile(chaind, ['q','distribution','community-pool','-o','json']);
         //console.log("j1:", tmpJson);
 	return parseJson(tmpJson);
 }
@@ -526,10 +581,56 @@ const options = {
 ///////////////////////////////////////////////////////////////////////////
 // Посчитаем среднее время блока
 
-	let avgTimeBlock = (msUTC - Date.parse(blockHeight.earliest_block_time)) / (blockHeight.latest_block_height - blockHeight.earliest_block_height);
+ let avgTimeBlock = (msUTC - Date.parse(blockHeight.earliest_block_time)) / (blockHeight.latest_block_height - blockHeight.earliest_block_height);
  str("# HELP node_time_block Time Block");
           str(`# TYPE node_time_block gauge`);
           str(`node_time_block{chain_id="${chainId}"} ${avgTimeBlock/1000}`);
+	
+///////////////////////////////////////////////////////////////////////////
+//  Supply, Community Pool, Bond...
+
+  let varBank = await getBank(binaryName);
+  //console.log(varBank);
+  let totalSupply = 0;
+  for (let i = 0; i < varBank.supply.length; i++) {
+	if (varBank.supply[i].denom == varMinting.mint_denom) {
+		totalSupply = varBank.supply[i].amount;
+		break;
+	}
+  }
+
+  let varStakingPool = await getStakingPool(binaryName);
+  let bond = varStakingPool.bonded_tokens;
+  let unbonding = varStakingPool.not_bonded_tokens;
+  let unbonded = totalSupply - bond - unbonding;
+
+  let varCommunityPool = await getCommunityPool(binaryName);
+  let communityPool = 0;
+  for (let i = 0; i < varCommunityPool.pool.length; i++) {
+        if (varCommunityPool.pool[i].denom == varMinting.mint_denom) {
+                communityPool = varCommunityPool.pool[i].amount;
+                break;
+        }
+  }
+  let apr = (totalSupply * (varMinting.inflation_max * (1-varDistrib.community_tax))) / bond;
+  str("# HELP node_bank_bond Supply, Community Pool, Bond...");
+          str(`# TYPE node_bank_bond gauge`);
+          str(`node_bank_bond{chain_id="${chainId}", param="Supply"} ${totalSupply/(10**exponent)}`);
+          str(`node_bank_bond{chain_id="${chainId}", param="Bond"} ${bond/(10**exponent)}`);
+          str(`node_bank_bond{chain_id="${chainId}", param="Unbonding"} ${unbonding/(10**exponent)}`);
+          str(`node_bank_bond{chain_id="${chainId}", param="Unbonded"} ${unbonded/(10**exponent)}`);
+          str(`node_bank_bond{chain_id="${chainId}", param="Community Pool"} ${communityPool/(10**exponent)}`);
+          str(`node_bank_bond{chain_id="${chainId}", param="APR"} ${apr*100}`);
+
+//////////////////////////////////////////////////////////////////////////////////////
+// Validators
+
+	let varValidators = getValidatorsParam(validators);
+  str("# HELP node_validators Validators");
+          str(`# TYPE node_validators gauge`);
+          str(`node_valdators{chain_id="${chainId}", param="IdealActiveSet"} ${varStaking.max_validators}`);
+          str(`node_valdators{chain_id="${chainId}", param="RealActiveSet"} ${varValidators.activeValidators}`);
+          str(`node_valdators{chain_id="${chainId}", param="TotalNumValidators"} ${varValidators.totalNumValidators}`);
 	
 
 //	console.log("avgTimeBlock", avgTimeBlock);
