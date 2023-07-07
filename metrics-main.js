@@ -201,16 +201,30 @@ function getValidatorsParam(valiki) {
 	let totalNumValidators = valiki.validators.length;
 // перебираем валидаторы
 	let activeValidators = 0;
+	let minStake = (10**255);
+	console.log("min", minStake);
 	for(let i = 0; i < totalNumValidators; i++) {
-// считаем валидаторов в активном сете
+
 		if (valiki.validators[i].status == "BOND_STATUS_BONDED" )
+		{
+			// считаем валидаторов в активном сете
 			activeValidators++;
+			// считаем минимальный stake
+			/*console.log(activeValidators);
+			console.log("tokens", valiki.validators[i].tokens);
+			console.log("minStake", minStake);
+			*/
+			if (Number(valiki.validators[i].tokens) < Number(minStake)) {
+				minStake = Number(valiki.validators[i].tokens);
+				//console.log("min", minStake);
+			}
+		}
 	}
 
-////////
 	return { 
 		"totalNumValidators": totalNumValidators,
-		"activeValidators": activeValidators
+		"activeValidators": activeValidators,
+		"minStake": minStake
 	 };
 }
 
@@ -631,7 +645,8 @@ const options = {
           str(`node_valdators{chain_id="${chainId}", param="IdealActiveSet"} ${varStaking.max_validators}`);
           str(`node_valdators{chain_id="${chainId}", param="RealActiveSet"} ${varValidators.activeValidators}`);
           str(`node_valdators{chain_id="${chainId}", param="TotalNumValidators"} ${varValidators.totalNumValidators}`);
-	
+          str(`node_valdators{chain_id="${chainId}", param="minStake"} ${(varValidators.minStake)/(10**exponent)}`);
+
 
 //	console.log("avgTimeBlock", avgTimeBlock);
 
@@ -668,10 +683,4 @@ const options = {
   },
   10000 // 9,7+ sec
 );
-
-
-
-
-
-
 
