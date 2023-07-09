@@ -202,7 +202,11 @@ function getValidatorsParam(valiki) {
 // перебираем валидаторы
 	let activeValidators = 0;
 	let minStake = (10**255);
+	let validatorStr = "";
+	let i = 0;
+	let validatorTmp = {};
 	console.log("min", minStake);
+	let arrValidators = [];
 	for(let i = 0; i < totalNumValidators; i++) {
 
 		if (valiki.validators[i].status == "BOND_STATUS_BONDED" )
@@ -210,23 +214,59 @@ function getValidatorsParam(valiki) {
 			// считаем валидаторов в активном сете
 			activeValidators++;
 			// считаем минимальный stake
-			/*console.log(activeValidators);
-			console.log("tokens", valiki.validators[i].tokens);
-			console.log("minStake", minStake);
-			*/
 			if (Number(valiki.validators[i].tokens) < Number(minStake)) {
 				minStake = Number(valiki.validators[i].tokens);
-				//console.log("min", minStake);
-			}
+			}		
 		}
+	// оформляем валидаторов
+		validatorStr = "";
+		validatorTmp = valiki.validators[i];
+	  	j = 0;
+	//	for (let key in validatorTmp) {
+			//console.log("validatorTmp[key]",validatorTmp[key]);
+	//	        i++;
+			//if (key == "operator_address"){
+		        //validatorStr += key + "=\"" + validatorTmp[key] + "\","; //}
+			validatorStr += "operator_address" + "=\"" + validatorTmp.operator_address + "\","; //}	
+			//if (key == "jailed") {
+				if (validatorTmp.jailed == true) {
+			        	validatorStr += "status" + "=\"" + "Jailed" + "\",";
+				}
+				else {
+					if (validatorTmp.status == "BOND_STATUS_BONDED") {
+						validatorStr += "status" + "=\"" + "Active" + "\",";
+					}
+					else if (validatorTmp.status == "BOND_STATUS_UNBONDED") {
+						validatorStr += "status" + "=\"" + "Unbonded" + "\",";
+					}
+					else // (validatorTmp[key].status == "BOND_STATUS_UNBONDING")
+					{	
+						validatorStr += "status" + "=\"" + "Unbonding" + "\",";
+					}
+				}
+			//}
+			//if (key == "tokens"){
+//                                validatorStr += "tokens" + "=\"" + validatorTmp.tokens + "\","; //}
+			//if (key == "description"){
+                                validatorStr += "moniker" + "=\"" + validatorTmp.description.moniker + "\","; //}
+			//if (key == "commission"){
+                                validatorStr += "commission" + "=\"" + (validatorTmp.commission.commission_rates.rate*100) + "\""; //}
+	
+			arrValidators.push({"validatorStr": validatorStr, "tokens": Number(validatorTmp.tokens)});
+	//	 }
+		// if (i < Object.keys(validatorTmp).length) { validatorStr += ",";}
+
 	}
 
-	return { 
+//	console.log("arrValidators:", arrValidators);
+	return {
 		"totalNumValidators": totalNumValidators,
 		"activeValidators": activeValidators,
-		"minStake": minStake
+		"minStake": minStake,
+		"arrValidators": arrValidators
 	 };
 }
+
 
 async function getStatus(chaind) {
         const tmpJson = await execFile(chaind, ['status','--log_format','json']);
@@ -646,7 +686,10 @@ const options = {
           str(`node_valdators{chain_id="${chainId}", param="RealActiveSet"} ${varValidators.activeValidators}`);
           str(`node_valdators{chain_id="${chainId}", param="TotalNumValidators"} ${varValidators.totalNumValidators}`);
           str(`node_valdators{chain_id="${chainId}", param="minStake"} ${(varValidators.minStake)/(10**exponent)}`);
-
+          for (let i in varValidators.arrValidators) {
+            str(`node_validators{chain_id="${chainId}",bond_pre = "${(varValidators.arrValidators[i].tokens/bond)*100}", ${varValidators.arrValidators[i].validatorStr}}\
+		 ${varValidators.arrValidators[i].tokens/(10**exponent)}`);
+	  }
 
 //	console.log("avgTimeBlock", avgTimeBlock);
 
