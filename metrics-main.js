@@ -21,6 +21,7 @@ let chainData = {}; // дaнные из chain.json
 let assetListData = {}; // дaнные из assetlist.json
 let dataCrypto = {}; // данные из API биржы по нашему токену
 let validators = {}; // данные по валидаторам
+let proposals = {} // данные по пропосалам
 
 
 // Promise
@@ -73,6 +74,26 @@ server.listen(port, hostname, async () => {
   chainData = await downloadChainFile(linkChain, "chain");
   assetListData = await downloadChainFile(linkAssetList, "assetlist");
 });
+
+///////////////////////////////////////////////////////////////////
+// Convert Date to utc
+function ConvertDateToUTC(date) {
+	 let msUTC = Date.parse(date);
+	 let dateUTC = new Date(msUTC);
+
+	const options = {
+	  hour12: false,
+	  year: '2-digit',
+	  month: 'short',
+	  day: '2-digit',
+	  timeZone: 'UTC',
+	  timeZoneName:    'short',
+	  hour: '2-digit',
+	  minute: '2-digit',
+	  second: '2-digit'
+	 }
+	 return dateUTC.toLocaleString('en-US',options);
+}
 
 //////////////////////////////////////////////////////////////////
 // Download chain.json
@@ -172,7 +193,24 @@ setInterval(
 	},
 	19777 //  <=  sec*1000 // 1800_000 = 30 min
 );
-// обрабатываем валидаторов
+
+//////////////////////////////////////////////////////////////////
+// Get Proposals
+setTimeout(
+	async () => {
+		proposals = await getProposals(chainData.daemon_name);
+	}, 2111 // сначал через ~1 сек прочитаем пропосалы
+);
+setInterval(
+	async () => {
+		console.time("getProposals");
+		proposals = await getProposals(chainData.daemon_name);
+// 		console.log("validators:", validators);
+		console.timeEnd('getProposals');
+	},
+	29777 //  <=  sec*1000 // 1800_000 = 30 min
+);
+
 
 
 //////////////////////////////////////////////////////////////////
@@ -192,14 +230,81 @@ function parseJson (tmpjson) {
 	return content;
 }
 
+async function getProposals(chaind) {
+//        const tmpJson = await execFile(chaind, ['q','gov','proposals','-o','json','--limit','3','--reverse']);
+        const tmpJson = await execFile(chaind, ['q','gov','proposals','-o','json','--reverse']);
+        return parseJson(tmpJson);
+}
+
+function getProposalsParam(props) {
+//	console.log("props = ", props);
+	// всего пропозалов
+	let totalNumProposals = props.proposals.length;
+	//let id = "";
+	let arrProposals = [];
+	// перебираем пропозалы
+	for (let i = 0; i < totalNumProposals; i++) {
+		proposalTmp = props.proposals[i];
+		let proposalStr = "";
+/*		if (typeof proposalTmp.proposals_id != "undefined")
+			id = proposalTmp.proposals_id;
+		if (typeof proposalTmp.id != "undefined")
+			id = proposalTmp.id;
+*/
+		let id = proposalTmp.proposals_id || proposalTmp.id;
+		let content = proposalTmp.content || proposalTmp.messages[0].content;
+//		let status = proposalTmp.status;
+		let final_tally_result = {};
+		for (key in proposalTmp.final_tally_result) {
+			//console.log(key);
+			if (key.indexOf("yes") != -1) final_tally_result.yes = proposalTmp.final_tally_result[key];
+			if (key.indexOf("abstain") != -1) final_tally_result.abstain = proposalTmp.final_tally_result[key];
+			if (key == "no" || key == "no_count") final_tally_result.no = proposalTmp.final_tally_result[key];
+			if (key.indexOf("no_with_veto") != -1) final_tally_result.no_with_veto = proposalTmp.final_tally_result[key];
+		}
+		//proposalStr += "proposal_id=\"" + id + "\",";
+		for (key in content) {
+			if (key.indexOf("type") != -1) proposalStr += "content_type=\"" + content[key].substr(content[key].lastIndexOf(".")+1) + "\",";
+		}
+		proposalStr += "content_title=\"" + content.title + "\",";
+		proposalStr += "content_description=\"" + content.description + "\",";
+		if (typeof content.plan != "undefined") {
+                        proposalStr += "content_plan=\"" + JSON.stringify(content.plan).replace(/"/g,'') + "\"," + "content_changes=\"\",";
+		}
+		else if (typeof content.changes != "undefined")
+                        proposalStr += "content_plan=\"\"," + "content_changes=\"" + JSON.stringify(content.changes).replace(/"/g,'') + "\",";
+		else
+                        proposalStr += "content_plan=\"\"," + "content_changes=\"\",";
+
+		proposalStr += "status=\"" + proposalTmp.status.replace("PROPOSAL_STATUS_",'') + "\",";
+
+		proposalStr += "yes=\"" + final_tally_result.yes + "\",";
+		proposalStr += "abstain=\"" + final_tally_result.abstain + "\",";
+		proposalStr += "no=\"" + final_tally_result.no + "\",";
+		proposalStr += "no_with_veto=\"" + final_tally_result.no_with_veto + "\",";
+		proposalStr += "submit_time=\"" + proposalTmp.submit_time + "\",";
+		proposalStr += "deposit_end_time=\"" + proposalTmp.deposit_end_time + "\",";
+		proposalStr += "voting_start_time=\"" + proposalTmp.voting_start_time + "\",";
+		proposalStr += "voting_end_time=\"" + ConvertDateToUTC(proposalTmp.voting_end_time) + "\"";
+		
+		arrProposals.push({"proposalStr": proposalStr, "proposal_id": id});
+	}
+//	console.log(totalNumProposals);
+	return {
+                "totalNumProposals": totalNumProposals,
+                "arrProposals": arrProposals
+         };
+}
+
 async function getValidators(chaind) {
         const tmpJson = await execFile(chaind, ['q','staking','validators','-o','json','--limit','1000000']);
         return parseJson(tmpJson);
 }
 function getValidatorsParam(valiki) {
-// общее число валидаторов
+	// общее число валидаторов
 	let totalNumValidators = valiki.validators.length;
-// перебираем валидаторы
+
+	// перебираем валидаторы
 	let activeValidators = 0;
 	let minStake = (10**255);
 	let validatorStr = "";
@@ -216,46 +321,32 @@ function getValidatorsParam(valiki) {
 			// считаем минимальный stake
 			if (Number(valiki.validators[i].tokens) < Number(minStake)) {
 				minStake = Number(valiki.validators[i].tokens);
-			}		
+			}
 		}
-	// оформляем валидаторов
+		// оформляем валидаторов
 		validatorStr = "";
 		validatorTmp = valiki.validators[i];
 	  	j = 0;
-	//	for (let key in validatorTmp) {
-			//console.log("validatorTmp[key]",validatorTmp[key]);
-	//	        i++;
-			//if (key == "operator_address"){
-		        //validatorStr += key + "=\"" + validatorTmp[key] + "\","; //}
-			validatorStr += "operator_address" + "=\"" + validatorTmp.operator_address + "\","; //}	
-			//if (key == "jailed") {
-				if (validatorTmp.jailed == true) {
-			        	validatorStr += "status" + "=\"" + "Jailed" + "\",";
-				}
-				else {
-					if (validatorTmp.status == "BOND_STATUS_BONDED") {
-						validatorStr += "status" + "=\"" + "Active" + "\",";
-					}
-					else if (validatorTmp.status == "BOND_STATUS_UNBONDED") {
-						validatorStr += "status" + "=\"" + "Unbonded" + "\",";
-					}
-					else // (validatorTmp[key].status == "BOND_STATUS_UNBONDING")
-					{	
-						validatorStr += "status" + "=\"" + "Unbonding" + "\",";
-					}
-				}
-			//}
-			//if (key == "tokens"){
-//                                validatorStr += "tokens" + "=\"" + validatorTmp.tokens + "\","; //}
-			//if (key == "description"){
-                                validatorStr += "moniker" + "=\"" + validatorTmp.description.moniker + "\","; //}
-			//if (key == "commission"){
-                                validatorStr += "commission" + "=\"" + (validatorTmp.commission.commission_rates.rate*100) + "\""; //}
-	
-			arrValidators.push({"validatorStr": validatorStr, "tokens": Number(validatorTmp.tokens)});
-	//	 }
-		// if (i < Object.keys(validatorTmp).length) { validatorStr += ",";}
+		validatorStr += "operator_address" + "=\"" + validatorTmp.operator_address + "\","; //}
 
+			if (validatorTmp.jailed == true) {
+		        	validatorStr += "status" + "=\"" + "Jailed" + "\",";
+			}
+			else {
+				if (validatorTmp.status == "BOND_STATUS_BONDED") {
+					validatorStr += "status" + "=\"" + "Active" + "\",";
+				}
+				else if (validatorTmp.status == "BOND_STATUS_UNBONDED") {
+					validatorStr += "status" + "=\"" + "Unbonded" + "\",";
+				}
+				else // (validatorTmp[key].status == "BOND_STATUS_UNBONDING")
+				{
+					validatorStr += "status" + "=\"" + "Unbonding" + "\",";
+				}
+			}
+		validatorStr += "moniker" + "=\"" + validatorTmp.description.moniker + "\","; //}
+                validatorStr += "commission" + "=\"" + (validatorTmp.commission.commission_rates.rate*100) + "\""; //}
+		arrValidators.push({"validatorStr": validatorStr, "tokens": Number(validatorTmp.tokens)});
 	}
 
 //	console.log("arrValidators:", arrValidators);
@@ -339,6 +430,8 @@ async function getCommunityPool(chaind) {
 
 setInterval(
   async () => {
+
+  console.time('timeOutString');
 
   let str_tmp = "";
   function str (message) { str_tmp = str_tmp + message + "\n"; } 
@@ -609,8 +702,11 @@ setInterval(
 // Height
 //"latest_block_height":"9279202","latest_block_time":"2023-07-04T07:51:00.653355024Z"
  let blockHeight = varStatus.SyncInfo;
+
+
+
  let msUTC = Date.parse(blockHeight.latest_block_time);
- let date = new Date(msUTC);
+/* let date = new Date(msUTC);
 
 const options = {
   hour12: false,
@@ -622,14 +718,15 @@ const options = {
   hour: '2-digit',
   minute: '2-digit',
   second: '2-digit'
-};
+};*/
 // console.log(date.toLocaleString("en-US",options));
 
  str("# HELP node_block_height Height of Block.");
           str(`# TYPE node_block_height counter`);
-          str(`node_block_height{chain_id="${chainId}",\
-                time="${date.toLocaleString('en-US',options)}"} ${blockHeight.latest_block_height}`);
-
+         // str(`node_block_height{chain_id="${chainId}",\
+         //       time="${date.toLocaleString('en-US',options)}"} ${blockHeight.latest_block_height}`);
+	  str(`node_block_height{chain_id="${chainId}",\
+                time="${ConvertDateToUTC(blockHeight.latest_block_time)}"} ${blockHeight.latest_block_height}`);
 //"earliest_block_height":"9259981","earliest_block_time":"2023-07-03T00:34:47.282765186Z"
 
 ///////////////////////////////////////////////////////////////////////////
@@ -691,6 +788,19 @@ const options = {
 		 ${varValidators.arrValidators[i].tokens/(10**exponent)}`);
 	  }
 
+/////////////////////////////////////////////////////////////////////////////////////
+// Proposals
+	let varProposals = getProposalsParam(proposals);
+//	console.log(varProposals);
+   str("# HELP node_proposals Proposals");
+          str(`# TYPE node_proposals gauge`);
+          str(`node_proposals{chain_id="${chainId}", total_num_proposals="total_num_proposals"} ${varProposals.totalNumProposals}`);
+          for (let i in varProposals.arrProposals) {
+	   let j = Number(+i+1);
+//		console.log(j);
+            str(`node_proposals{chain_id="${chainId}", num="${j}", ${varProposals.arrProposals[i].proposalStr}} ${varProposals.arrProposals[i].proposal_id}`);
+	  }
+// arrProposals.push({"proposalStr": proposalStr, "proposal_id": id});
 //	console.log("avgTimeBlock", avgTimeBlock);
 
 /*
@@ -719,9 +829,8 @@ const options = {
 //////////////////////////////////////////////////////////////////////////
 // формируем СТРОКУ, которая пойдет в Прометеус
   outString = str_tmp;
-  console.log("outString:\n", outString);
-
-
+//  console.log("outString:\n", outString);
+   console.timeEnd('timeOutString');
  // console.log('Hello every 3 seconds');
   },
   10000 // 9,7+ sec
