@@ -236,12 +236,32 @@ async function getProposals(chaind) {
         return parseJson(tmpJson);
 }
 
-function getProposalsParam(props) {
+async function getProposalsParam(props) {
 //	console.log("props = ", props);
 	// всего пропозалов
 	let totalNumProposals = props.proposals.length;
 	//let id = "";
 	let arrProposals = [];
+	let arrProposalsLast = [];
+	let arrProposalsPreLast = [];
+//	let arrProposalsLastNotTable = [];
+//	let arrProposalsPreLastNotTable = [];
+	function fillArrLast (index, strData, digit) {
+		if (index == 0) {arrProposalsLast.push({"str":strData,"digit":digit});}
+                if (index == 1) {arrProposalsPreLast.push({"str":strData,"digit":digit});}
+	}
+
+	function ConvertStr(str){
+		console.log(str);
+		let tmp = JSON.stringify(str).replace(/[\"]/g,''); // убираем кавычки
+		console.log(tmp);
+		tmp = JSON.stringify(tmp).replace(/[\{\}\[\]\"]/g,''); // убираем  скобки
+		console.log(tmp);
+		tmp = JSON.stringify(tmp).replace(/[\,]/g,',  \n'); // запятые меняем на перенос строки
+		console.log(tmp);
+		//tmp = JSON.stringify(tmp).replace(/[\"]/g,''); // убираем кавычки
+		return tmp;
+	}
 	// перебираем пропозалы
 	for (let i = 0; i < totalNumProposals; i++) {
 		proposalTmp = props.proposals[i];
@@ -252,6 +272,7 @@ function getProposalsParam(props) {
 			id = proposalTmp.id;
 */
 		let id = proposalTmp.proposals_id || proposalTmp.id;
+		fillArrLast(i,`tabl="tabl", name_param="Id", param="${id}"`,0);
 		let content = proposalTmp.content || proposalTmp.messages[0].content;
 //		let status = proposalTmp.status;
 		let final_tally_result = {};
@@ -262,37 +283,111 @@ function getProposalsParam(props) {
 			if (key == "no" || key == "no_count") final_tally_result.no = proposalTmp.final_tally_result[key];
 			if (key.indexOf("no_with_veto") != -1) final_tally_result.no_with_veto = proposalTmp.final_tally_result[key];
 		}
-		//proposalStr += "proposal_id=\"" + id + "\",";
-		for (key in content) {
-			if (key.indexOf("type") != -1) proposalStr += "content_type=\"" + content[key].substr(content[key].lastIndexOf(".")+1) + "\",";
-		}
+
 		proposalStr += "content_title=\"" + content.title + "\",";
-		proposalStr += "content_description=\"" + content.description + "\",";
-		if (typeof content.plan != "undefined") {
-                        proposalStr += "content_plan=\"" + JSON.stringify(content.plan).replace(/"/g,'') + "\"," + "content_changes=\"\",";
-		}
-		else if (typeof content.changes != "undefined")
-                        proposalStr += "content_plan=\"\"," + "content_changes=\"" + JSON.stringify(content.changes).replace(/"/g,'') + "\",";
-		else
-                        proposalStr += "content_plan=\"\"," + "content_changes=\"\",";
+		fillArrLast(i,`tabl="tabl",name_param="Title", param="${content.title}"`,0);
 
 		proposalStr += "status=\"" + proposalTmp.status.replace("PROPOSAL_STATUS_",'') + "\",";
+		fillArrLast(i,`tabl="tabl",name_param="Status", param="${proposalTmp.status.replace("PROPOSAL_STATUS_",'')}"`,0);
+
+		//proposalStr += "proposal_id=\"" + id + "\",";
+		for (key in content) {
+			if (key.indexOf("type") != -1){
+				proposalStr += "content_type=\"" + content[key].substr(content[key].lastIndexOf(".")+1) + "\",";
+				fillArrLast(i,`tabl="tabl",name_param="Type", param="${content[key].substr(content[key].lastIndexOf('.')+1)}"`,0);
+			}
+		}
+		// prposer - НАДО сделать!!!
+//		let proposer = await getProposer(chainData.daemon_name, id);
+//		proposalStr += "proposer=\"" + proposer.proposer + "\",";
+//		fillArrLast(i,`tabl="tabl",name_param="Proposer", param="${proposer.proposer}"`);
+
+		proposalStr += "submit_time=\"" + ConvertDateToUTC(proposalTmp.submit_time) + "\",";
+		proposalStr += "deposit_end_time=\"" + ConvertDateToUTC(proposalTmp.deposit_end_time) + "\",";
+		proposalStr += "voting_start_time=\"" + ConvertDateToUTC(proposalTmp.voting_start_time) + "\",";
+		proposalStr += "voting_end_time=\"" + ConvertDateToUTC(proposalTmp.voting_end_time) + "\"";
+		fillArrLast(i,`tabl="tabl",name_param="Submit Time", param="${ConvertDateToUTC(proposalTmp.submit_time)}"`,0);
+                fillArrLast(i,`tabl="tabl",name_param="Deposit End Time", param="${ConvertDateToUTC(proposalTmp.deposit_end_time)}"`,0);
+                fillArrLast(i,`tabl="tabl",name_param="Voting Start Time", param="${ConvertDateToUTC(proposalTmp.voting_start_time)}"`,0);
+                fillArrLast(i,`tabl="tabl",name_param="Voting End Time", param="${ConvertDateToUTC(proposalTmp.voting_end_time)}"`,0);
+		proposalStr += "content_description=\"" + content.description + "\",";
+		fillArrLast(i,`tabl="tabl",name_param="Description", param="${content.description}"`,0);
+
+		if (typeof content.plan != "undefined") {
+			//let tmpstr = content.plan; //ConvertStr(content.plan);
+                        proposalStr += "content_plan=\"" + JSON.stringify(content.plan).replace(/"/g,'') + "\"," + "content_changes=\"\",";
+			//proposalStr += "content_plan=" + tmpstr + "," + "content_changes=\"\",";
+			fillArrLast(i,`tabl="tabl",name_param="Plan", param="${JSON.stringify(content.plan).replace(/"/g,'')}"`,0);
+			//fillArrLast(i,`tabl="tabl",name_param="Plan", param=${tmpstr}`);
+		}
+		else if (typeof content.changes != "undefined"){
+			//let tmpstr = content.changes; //ConvertStr(content.changes);
+                        proposalStr += "content_plan=\"\"," + "content_changes=\"" + JSON.stringify(content.changes).replace(/"/g,'') + "\",";
+			fillArrLast(i,`tabl="tabl",name_param="Changes", param="${JSON.stringify(content.changes).replace(/"/g,'')}"`, 0);
+                        //proposalStr += "content_plan=\"\"," + "content_changes=\"" + tmpstr + "\",";
+			//fillArrLast(i,`tabl="tabl",name_param="Changes", param="${tmpstr}"`);
+		}
+		else {
+                        proposalStr += "content_plan=\"\"," + "content_changes=\"\",";
+		}
+
+
 
 		proposalStr += "yes=\"" + final_tally_result.yes + "\",";
 		proposalStr += "abstain=\"" + final_tally_result.abstain + "\",";
 		proposalStr += "no=\"" + final_tally_result.no + "\",";
 		proposalStr += "no_with_veto=\"" + final_tally_result.no_with_veto + "\",";
-		proposalStr += "submit_time=\"" + proposalTmp.submit_time + "\",";
-		proposalStr += "deposit_end_time=\"" + proposalTmp.deposit_end_time + "\",";
-		proposalStr += "voting_start_time=\"" + proposalTmp.voting_start_time + "\",";
-		proposalStr += "voting_end_time=\"" + ConvertDateToUTC(proposalTmp.voting_end_time) + "\"";
+		//fillArrLast(i,`tabl="notabl",name_param="Yes", param="${final_tally_result.yes}"`);
+		fillArrLast(i,`tabl="notabl",name_param="Yes"`, final_tally_result.yes);
+		//fillArrLast(i,`tabl="notabl",name_param="No", param="${final_tally_result.no}"`);
+		fillArrLast(i,`tabl="notabl",name_param="No"`, final_tally_result.no);
+		//fillArrLast(i,`tabl="notabl",name_param="Abstain", param="${final_tally_result.abstain}"`);
+		fillArrLast(i,`tabl="notabl",name_param="Abstain"`, final_tally_result.abstain);
+		//fillArrLast(i,`tabl="notabl",name_param="Veto", param="${final_tally_result.no_with_veto}"`);
+		fillArrLast(i,`tabl="notabl",name_param="Veto"`, final_tally_result.no_with_veto);
 		
+	
+
+		//fillArrLast(i,`pos="01", tabl="tabl", name_param="Id", param="${id}"`);
+		//fillArrLast(i,`pos="02", tabl="tabl",name_param="Title", param="${content.title}"`);
+		//fillArrLast(i,`pos="03", tabl="tabl",name_param="Status", param="${proposalTmp.status.replace("PROPOSAL_STATUS_",'')}"`);
+		//fillArrLast(i,`pos="04",tabl="tabl",name_param="Type", param="${content[key].substr(content[key].lastIndexOf('.')+1)}"`);
+
+		//fillArrLast(i,`pos="06",tabl="tabl",name_param="Submit Time", param="${ConvertDateToUTC(proposalTmp.submit_time)}"`);
+		//fillArrLast(i,`pos="07",tabl="tabl",name_param="Deposit End Time", param="${ConvertDateToUTC(proposalTmp.deposit_end_time)}"`);
+		//fillArrLast(i,`pos="08",tabl="tabl",name_param="Voting Start Time", param="${ConvertDateToUTC(proposalTmp.voting_start_time)}"`);
+		//fillArrLast(i,`pos="09",tabl="tabl",name_param="Voting End Time", param="${ConvertDateToUTC(proposalTmp.voting_end_time)}"`);
+		/*fillArrLast(i,`pos="10",tabl="tabl",name_param="Description", param="${content.description}"`);
+		if (typeof content.plan != "undefined") {
+			fillArrLast(i,`pos="11",tabl="tabl",name_param="Plan", param="${JSON.stringify(content.plan).replace(/"/g,'')}"`);
+		}
+		else if (typeof content.changes != "undefined"){
+			fillArrLast(i,`pos="11",tabl="tabl",name_param="Changes", param="${JSON.stringify(content.changes).replace(/"/g,'')}"`);
+		}
+		fillArrLast(i,`name_param="Yes", param="${final_tally_result.yes}"`);
+		fillArrLast(i,`name_param="No", param="${final_tally_result.no}"`);
+		fillArrLast(i,`name_param="Abstain", param="${final_tally_result.abstain}"`);
+		fillArrLast(i,`name_param="Veto", param="${final_tally_result.no_with_veto}"`);
+*/
+
 		arrProposals.push({"proposalStr": proposalStr, "proposal_id": id});
 	}
+
+
+/*str(`node_governance{chain_id="${chainId}",\
+        i="${i++}",\
+        name_param="Min Deposit",\
+        param="${mindepo} ${varVersion.name}"} 1`); 
+*/
+
 //	console.log(totalNumProposals);
 	return {
                 "totalNumProposals": totalNumProposals,
-                "arrProposals": arrProposals
+                "arrProposals": arrProposals,
+                "arrProposalsLast": arrProposalsLast,
+                "arrProposalsPreLast": arrProposalsPreLast
+ //		"arrProposalsLastNotTable": arrProposalsLastNotTable,
+//		"arrProposalsPreLastNotTable": arrProposalsPreLastNotTable
          };
 }
 
@@ -358,6 +453,10 @@ function getValidatorsParam(valiki) {
 	 };
 }
 
+async function getProposer(chaind, id) {
+        const tmpJson = await execFile(chaind, ['q','gov','proposer',id,'--node',chainData.apis.rpc[2].address,'-o','json']);
+        return parseJson(tmpJson);
+}
 
 async function getStatus(chaind) {
         const tmpJson = await execFile(chaind, ['status','--log_format','json']);
@@ -488,7 +587,9 @@ setInterval(
   }
   str(`node_chain_info_fees{chain_id="${chainId}", ${feeStr}} 1`);
 
-
+////////////////
+//  Выделим rpc ноду
+//  nodeFirst = chainData.apis.rpc[0];
 
 //////////////////////////////////////////////
 // Staking 
@@ -790,19 +891,34 @@ const options = {
 
 /////////////////////////////////////////////////////////////////////////////////////
 // Proposals
-	let varProposals = getProposalsParam(proposals);
+	let varProposals = await getProposalsParam(proposals);
 //	console.log(varProposals);
    str("# HELP node_proposals Proposals");
           str(`# TYPE node_proposals gauge`);
           str(`node_proposals{chain_id="${chainId}", total_num_proposals="total_num_proposals"} ${varProposals.totalNumProposals}`);
+
+//	console.log("Last:", varProposals.arrProposalsLast)
+	  for (let i in varProposals.arrProposalsLast) {
+	        let j = Number(+i+1+10);
+	        str(`node_proposals_last{chain_id="${chainId}", i="${j}", ${varProposals.arrProposalsLast[i].str}} ${varProposals.arrProposalsLast[i].digit/(10**exponent)}`);
+	  }
+//	console.log("PreLast:", varProposals.arrProposalsPreLast)
+	  for (let i in varProposals.arrProposalsPreLast) {
+	        let j = Number(+i+1+10);
+	        str(`node_proposals_pre_last{chain_id="${chainId}", i="${j}", ${varProposals.arrProposalsPreLast[i].str}} ${varProposals.arrProposalsPreLast[i].digit/(10**exponent)}`);
+	  }
           for (let i in varProposals.arrProposals) {
 	   let j = Number(+i+1);
-//		console.log(j);
             str(`node_proposals{chain_id="${chainId}", num="${j}", ${varProposals.arrProposals[i].proposalStr}} ${varProposals.arrProposals[i].proposal_id}`);
 	  }
 // arrProposals.push({"proposalStr": proposalStr, "proposal_id": id});
 //	console.log("avgTimeBlock", avgTimeBlock);
-
+/*
+str(`node_governance{chain_id="${chainId}",\
+        i="${i++}",\
+        name_param="Quorum",\
+        param="${((parseFloat(varGov.tally_params.quorum))*100)}%"} 1`);
+*/
 /*
   if (oldMsUTC != 0 && oldBlockHeight != 0) {
    let deltaMsUTC = msUTC - oldMsUTC;
