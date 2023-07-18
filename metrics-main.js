@@ -1,6 +1,4 @@
-const http = require('http');
-const child_process = require('child_process'); 
-const util = require('util');
+const http = require('http'); const child_process = require('child_process'); const util = require('util');
 
 /////////////////////////////////////////////////////////////////////
 // вот это хозяйство надо будет в файл засунуть - config.json
@@ -12,6 +10,8 @@ const linkChain = "https://raw.githubusercontent.com/cosmos/chain-registry/maste
 const linkAssetList = "https://raw.githubusercontent.com/cosmos/chain-registry/master/bitcanna/assetlist.json";
 // данные по токенам беерм вот отсюда https://www.coingecko.com/en/api/documentation
 const linkDataCrypto = "https://api.coingecko.com/api/v3/simple/price?ids=bitcanna&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true&precision=fuul";
+// берем рабочую ноду со стороны - можно взять из chain.json - в идеале надо брать программно
+const rpcprovider = "https://rpc.bitcanna.io:443";
 
 /////////////////////////////////////////////////////////////////////
 
@@ -236,7 +236,7 @@ async function getProposals(chaind) {
         return parseJson(tmpJson);
 }
 
-async function getProposalsParam(props) {
+async function getProposalsParam(props, blocks) {
 //	console.log("props = ", props);
 	// всего пропозалов
 	let totalNumProposals = props.proposals.length;
@@ -244,11 +244,34 @@ async function getProposalsParam(props) {
 	let arrProposals = [];
 	let arrProposalsLast = [];
 	let arrProposalsPreLast = [];
+	let blockVotingEnd = 0;
 //	let arrProposalsLastNotTable = [];
 //	let arrProposalsPreLastNotTable = [];
-	function fillArrLast (index, strData, digit) {
-		if (index == 0) {arrProposalsLast.push({"str":strData,"digit":digit});}
-                if (index == 1) {arrProposalsPreLast.push({"str":strData,"digit":digit});}
+	async function fillArrLast (index, strData, digit) {
+		if (index == 0 || index == 1) {
+			//arrProposalsLast.push({"str":strData,"digit":digit});
+     			if (strData.indexOf("pool") != -1) {
+				let tmpJson = await execFile(chainData.daemon_name, ['q','staking','pool','-o','json','--height', blockVotingEnd, '--node', rpcprovider]);
+		                //console.log(parseJson(tmpJson));
+				let bt = parseJson(tmpJson);
+				//console.log(bt.bonded_tokens);
+				if (index == 0) {
+					//console.log('1');
+					arrProposalsLast.push({"str":strData,"digit": bt.bonded_tokens});
+					//console.log(arrProposalsLast);
+					//console.log('1');
+				}
+				if (index == 1) {arrProposalsPreLast.push({"str":strData,"digit": bt.bonded_tokens});}
+			}
+                	else
+			{
+				if (index == 0) {arrProposalsLast.push({"str":strData,"digit":digit})};
+				if (index == 1) {arrProposalsPreLast.push({"str":strData,"digit":digit});}
+			}
+		}
+                /*if (index == 1) {
+			arrProposalsPreLast.push({"str":strData,"digit":digit});
+		}*/
 	}
 
 	function ConvertStr(str){
@@ -331,12 +354,10 @@ async function getProposalsParam(props) {
                         proposalStr += "content_plan=\"\"," + "content_changes=\"\",";
 		}
 
-
-
 		proposalStr += "yes=\"" + final_tally_result.yes + "\",";
 		proposalStr += "abstain=\"" + final_tally_result.abstain + "\",";
 		proposalStr += "no=\"" + final_tally_result.no + "\",";
-		proposalStr += "no_with_veto=\"" + final_tally_result.no_with_veto + "\",";
+		proposalStr += "no_with_veto=\"" + final_tally_result.no_with_veto + "\"";
 		//fillArrLast(i,`tabl="notabl",name_param="Yes", param="${final_tally_result.yes}"`);
 		fillArrLast(i,`tabl="notabl",name_param="Yes"`, final_tally_result.yes);
 		//fillArrLast(i,`tabl="notabl",name_param="No", param="${final_tally_result.no}"`);
@@ -345,30 +366,42 @@ async function getProposalsParam(props) {
 		fillArrLast(i,`tabl="notabl",name_param="Abstain"`, final_tally_result.abstain);
 		//fillArrLast(i,`tabl="notabl",name_param="Veto", param="${final_tally_result.no_with_veto}"`);
 		fillArrLast(i,`tabl="notabl",name_param="Veto"`, final_tally_result.no_with_veto);
-		
-	
 
-		//fillArrLast(i,`pos="01", tabl="tabl", name_param="Id", param="${id}"`);
-		//fillArrLast(i,`pos="02", tabl="tabl",name_param="Title", param="${content.title}"`);
-		//fillArrLast(i,`pos="03", tabl="tabl",name_param="Status", param="${proposalTmp.status.replace("PROPOSAL_STATUS_",'')}"`);
-		//fillArrLast(i,`pos="04",tabl="tabl",name_param="Type", param="${content[key].substr(content[key].lastIndexOf('.')+1)}"`);
-
-		//fillArrLast(i,`pos="06",tabl="tabl",name_param="Submit Time", param="${ConvertDateToUTC(proposalTmp.submit_time)}"`);
-		//fillArrLast(i,`pos="07",tabl="tabl",name_param="Deposit End Time", param="${ConvertDateToUTC(proposalTmp.deposit_end_time)}"`);
-		//fillArrLast(i,`pos="08",tabl="tabl",name_param="Voting Start Time", param="${ConvertDateToUTC(proposalTmp.voting_start_time)}"`);
-		//fillArrLast(i,`pos="09",tabl="tabl",name_param="Voting End Time", param="${ConvertDateToUTC(proposalTmp.voting_end_time)}"`);
-		/*fillArrLast(i,`pos="10",tabl="tabl",name_param="Description", param="${content.description}"`);
-		if (typeof content.plan != "undefined") {
-			fillArrLast(i,`pos="11",tabl="tabl",name_param="Plan", param="${JSON.stringify(content.plan).replace(/"/g,'')}"`);
-		}
-		else if (typeof content.changes != "undefined"){
-			fillArrLast(i,`pos="11",tabl="tabl",name_param="Changes", param="${JSON.stringify(content.changes).replace(/"/g,'')}"`);
-		}
-		fillArrLast(i,`name_param="Yes", param="${final_tally_result.yes}"`);
-		fillArrLast(i,`name_param="No", param="${final_tally_result.no}"`);
-		fillArrLast(i,`name_param="Abstain", param="${final_tally_result.abstain}"`);
-		fillArrLast(i,`name_param="Veto", param="${final_tally_result.no_with_veto}"`);
+/*		let sum_votes = (final_tally_result.yes + final_tally_result.no + final_tally_result.abstain + final_tally_result.no_with_veto);
+		proposalStr += "voted=\"" + sum_votes  + "\",";
+		fillArrLast(i,`tabl="notabl", name_param="Voted"`, sum_votes);
 */
+//////////////////////////////////////////////////
+// Опеределяем номер блока в котором окончился пропосал
+		// Берем время сейчас
+		let msNow = Date.parse(blocks.currTime); // в милисекундах
+//		console.log("now:", Date.parse());
+//		console.log("currTime:", msNow);
+//		console.log("currblock:", blocks.currBlock);
+		// берем время окончания голосования
+	        let msVotingEnd = Date.parse(proposalTmp.voting_end_time); // в милисекундах
+//		console.log("endtime:", msVotingEnd);
+		// берем время блока - его длина
+	        //let block.timeBlock;
+		// берем текущий блок
+//		console.log("timeBlock:", blocks.timeBlock);
+		blockVotingEnd = Math.trunc(blocks.currBlock - ((msNow - msVotingEnd)/blocks.timeBlock));
+//		console.log(blockVotingEnd);
+
+
+		//let tmpJson = await execFile(chainData.daemon_name, ['q','staking','pool','-o','json','--height', blockVotingEnd, '--node', rpcprovider]);
+	        //console.log(parseJson(tmpJson));
+
+		await fillArrLast(i,`tabl="notabl",name_param="pool"`, 1);
+
+
+
+// bcnad q staking pool --height 9206276 --node https://rpc.bitcanna.io:443
+
+//{"timeBlock": avgTimeBlock, "currBlock": blockHeight.latest_block_height, "currTime": blockHeight.latest_block_time}
+
+//{"timeBlock": avgTimeBlock, "currBlock": blockHeight.latest_block_height});
+//////////////////////////////////////////////////
 
 		arrProposals.push({"proposalStr": proposalStr, "proposal_id": id});
 	}
@@ -765,15 +798,15 @@ setInterval(
   str(`node_governance{chain_id="${chainId}",\
         i="${i++}",\
         name_param="Quorum",\
-        param="${((parseFloat(varGov.tally_params.quorum))*100)}%"} 1`);
+        param="${((parseFloat(varGov.tally_params.quorum))*100)}%"} ${((parseFloat(varGov.tally_params.quorum))*100)}`);
   str(`node_governance{chain_id="${chainId}",\
         i="${i++}",\
         name_param="Threshold",\
-        param="${((parseFloat(varGov.tally_params.threshold))*100)}%"} 1`);
+        param="${((parseFloat(varGov.tally_params.threshold))*100)}%"} ${((parseFloat(varGov.tally_params.threshold))*100)}`);
   str(`node_governance{chain_id="${chainId}",\
         i="${i++}",\
         name_param="Veto Threshold",\
-        param="${((parseFloat(varGov.tally_params.veto_threshold))*100)}%"} 1`);
+        param="${((parseFloat(varGov.tally_params.veto_threshold))*100)}%"} ${((parseFloat(varGov.tally_params.veto_threshold))*100)}`);
   str(`node_governance{chain_id="${chainId}",\
         i="${i++}",\
         name_param="Voting Period",\
@@ -891,7 +924,7 @@ const options = {
 
 /////////////////////////////////////////////////////////////////////////////////////
 // Proposals
-	let varProposals = await getProposalsParam(proposals);
+	let varProposals = await getProposalsParam(proposals, {"timeBlock": avgTimeBlock, "currBlock": blockHeight.latest_block_height, "currTime": blockHeight.latest_block_time});
 //	console.log(varProposals);
    str("# HELP node_proposals Proposals");
           str(`# TYPE node_proposals gauge`);
@@ -899,6 +932,8 @@ const options = {
 
 //	console.log("Last:", varProposals.arrProposalsLast)
 	  for (let i in varProposals.arrProposalsLast) {
+		//console.log(varProposals.arrProposalsLast[i].str);
+		//console.log(varProposals.arrProposalsLast[i].digit);
 	        let j = Number(+i+1+10);
 	        str(`node_proposals_last{chain_id="${chainId}", i="${j}", ${varProposals.arrProposalsLast[i].str}} ${varProposals.arrProposalsLast[i].digit/(10**exponent)}`);
 	  }
@@ -911,6 +946,12 @@ const options = {
 	   let j = Number(+i+1);
             str(`node_proposals{chain_id="${chainId}", num="${j}", ${varProposals.arrProposals[i].proposalStr}} ${varProposals.arrProposals[i].proposal_id}`);
 	  }
+
+/*   str("# HELP node_proposals_total Proposals total");
+          str(`# TYPE node_proposals_total gauge`);
+          str(`node_proposals_total{chain_id="${chainId}", name_param="Total Votes"} ${bond/(10**exponent)}`);
+          str(`node_proposals_total{chain_id="${chainId}", name_param="Voted"} ${bond/(10**exponent)}`);
+*/
 // arrProposals.push({"proposalStr": proposalStr, "proposal_id": id});
 //	console.log("avgTimeBlock", avgTimeBlock);
 /*
