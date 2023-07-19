@@ -575,6 +575,8 @@ setInterval(
   //console.log(varStatus);
   const chainId = varStatus.NodeInfo.network;
 
+////////////////////////////////////////////////////////////////////
+// Chain_Info
 
   let exponent = assetListData.assets[0].denom_units[assetListData.assets[0].denom_units.length-1].exponent;
   str("# HELP node_chain_info Chain Info");
@@ -610,15 +612,31 @@ setInterval(
   }
 
 
-  let feeStr = ""; // = chainData.codebase.binaries;  
+  let feeStr = ""; // = chainData.codebase.binaries;
   let feetmp = chainData.fees.fee_tokens[0];
   let i = 0;
   for (let key in feetmp) {
 	i++;
-        feeStr += key + "=\"" + feetmp[key] + "\""; 
+        feeStr += key + "=\"" + feetmp[key] + "\"";
 	if (i < Object.keys(feetmp).length) { feeStr += ",";}
   }
   str(`node_chain_info_fees{chain_id="${chainId}", ${feeStr}} 1`);
+
+
+  for (let i in chainData.explorers) {
+	str(`node_chain_info_explorers{chain_id="${chainId}", i="${(+i+1)}", explorer="${chainData.explorers[i].url}"} 1`);
+  }
+  for (let i in chainData.apis.rpc) {
+	str(`node_chain_info_rpc{chain_id="${chainId}", i="${(+i+1)}", rpc="${chainData.apis.rpc[i].address}"} 1`);
+  }
+  for (let i in chainData.apis.grpc) {
+	str(`node_chain_info_grpc{chain_id="${chainId}", i="${(+i+1)}", grpc="${chainData.apis.grpc[i].address}"} 1`);
+  }
+  for (let i in chainData.apis.rest) {
+	str(`node_chain_info_rest{chain_id="${chainId}", i="${(+i+1)}", rest="${chainData.apis.rest[i].address}"} 1`);
+  }
+
+
 
 ////////////////
 //  Выделим rpc ноду
