@@ -22,7 +22,8 @@ let assetListData = {}; // дaнные из assetlist.json
 let dataCrypto = {}; // данные из API биржы по нашему токену
 let validators = {}; // данные по валидаторам
 let proposals = {} // данные по пропосалам
-
+let block_param = {};
+let staking_pool = [];
 
 // Promise
 const execFile = util.promisify(
@@ -201,6 +202,7 @@ setTimeout(
 		proposals = await getProposals(chainData.daemon_name);
 	}, 2111 // сначал через ~1 сек прочитаем пропосалы
 );
+
 setInterval(
 	async () => {
 		console.time("getProposals");
@@ -210,6 +212,140 @@ setInterval(
 	},
 	29777 //  <=  sec*1000 // 1800_000 = 30 min
 );
+
+// поиск последнего блока в пропосале
+
+async function getBlockEndProposal() {	
+
+
+ 	async function binarySearch(block_param_currBlock, msVotingEnd){
+	    let start = 0;
+	    let end = +block_param_currBlock;
+
+	    while (start <= end) {
+	        let middle = Math.floor((start + end) / 2); // серединный блок
+    		console.log("middle:", middle);
+		 // читаем вычисленный блок
+                let blockH = await getBlockHeight(chainData.daemon_name,middle);
+                // определяем время блока Height
+                let timeB = blockH.block.header.time;
+                console.log("timeB:", timeB);
+                let msUTCH = Date.parse(timeB);
+                console.log("msUTCH:", msUTCH);
+                console.log("msVotingEnd:", msVotingEnd);
+	        //if (sortedArray[middle] === key) {
+		if ((middle - start <= 1) || (end - middle <= 1) ) {
+	            // found the key
+		    console.log("finish:", middle);
+	            return middle;
+	        } else if (msUTCH < msVotingEnd) {
+	            // continue searching to the right
+	            start = middle + 1;
+	
+	        } else {
+	            // search searching to the left
+	            end = middle - 1;
+	        }
+		console.log("start:", start);
+		console.log("end:", end);
+	    }
+		// key wasn't found
+	    return 0;
+	}
+
+
+	for(let i = 0; i < 2; i++){
+         let msNow = Date.parse(block_param.currTime); // в милисекундах
+//              console.log("now:", Date.parse());
+              console.log("currTime:", msNow);
+              console.log("currblock:", block_param.currBlock);
+                // берем время окончания голосования
+         let msVotingEnd = Date.parse(proposals.proposals[i].voting_end_time); // в милисекундах
+              console.log("endtime:", msVotingEnd);
+                // берем время блока - его длина
+                //let block.timeBlock;
+                // берем текущий блок
+                console.log("timeBlock:", block_param.timeBlock);
+
+                // если пропосал завершился - вычисляем последний блок голосования
+	 console.log("status:",proposals.proposals[i].status);
+ 	 //console.log("status:",proposals.proposals[i]);
+	 let blockVotingEnd = 0;
+         if (proposals.proposals[i].status == "PROPOSAL_STATUS_PASSED" || proposals.proposals[i].status == "PROPOSAL_STATUS_REJECTED") {
+                blockVotingEnd = Math.trunc(block_param.currBlock - ((msNow - msVotingEnd)/(block_param.timeBlock)));
+		console.log("blockVotingEnd:", blockVotingEnd);
+		let flag = 0;
+
+		// бинарный поиск нужного блока
+		blockVotingEnd = await binarySearch(block_param.currBlock, msVotingEnd);
+
+/*		while (blockVotingEnd > 0) {
+			try {
+				// читаем время вычисленного блока
+				let blockH = await getBlockHeight(chainData.daemon_name,blockVotingEnd);
+
+				// определяем время блока Height
+				let timeB = blockH.block.header.time;
+				console.log("timeB:", timeB);
+				let msUTCH = Date.parse(timeB);
+				console.log("msUTCH:", msUTCH);
+				// если мы определили время и оно больше чем надо - будем отсчитывать блоки в зад
+				if (msUTCH == msVotingEnd && flag == 0){
+					break;
+				}
+				if (msUTCH > msVotingEnd && (flag == 0 || flag == -1) ){
+					blockVotingEnd -= 10;
+					flag = -1;
+				}
+				else if (msUTCH <= msVotingEnd && flag == -1) {
+					break;
+				}
+				if (msUTCH < msVotingEnd && (flag == 0 || flag == 1) ){
+					blockVotingEnd += 10;
+					flag = 1;
+				}
+				else if (msUTCH >= msVotingEnd && flag == 1) {
+					blockVotingEnd -=10;
+					break;
+				}
+				console.log("Find blockVotingEnd:", blockVotingEnd);
+			}
+			catch (err) {
+        	                console.log(`ERR getBlockHeight: `, err);
+				blockVotingEnd = block_param.currBlock;
+				break;
+	                }
+		}
+*/  
+         }
+         else {
+                blockVotingEnd = block_param.currBlock;
+         }
+
+	if (blockVotingEnd > 0) {
+		let tmpJson = await execFile(chainData.daemon_name, ['q','staking','pool','-o','json','--height', blockVotingEnd, '--node', rpcprovider]);
+		//console.log(parseJson(tmpJson));
+		staking_pool[i] = parseJson(tmpJson);
+		//console.log("blockVotingEnd--------",blockVotingEnd);
+	}
+       } // end for
+}
+
+
+setTimeout(
+	async () => {
+		await getBlockEndProposal();
+	}, 14311 // сначал через ~1 сек прочитаем пропосалы
+);
+
+setInterval(
+	async () => {
+		await getBlockEndProposal();
+   },
+	3600577 //  <=  sec*1000 // 1800_000 = 30 min
+);
+
+
 
 
 
@@ -250,18 +386,18 @@ async function getProposalsParam(props, blocks) {
 	async function fillArrLast (index, strData, digit) {
 		if (index == 0 || index == 1) {
 			//arrProposalsLast.push({"str":strData,"digit":digit});
-     			if (strData.indexOf("pool") != -1) {
-				let tmpJson = await execFile(chainData.daemon_name, ['q','staking','pool','-o','json','--height', blockVotingEnd, '--node', rpcprovider]);
+     			if (strData.indexOf("pool") != -1 && (staking_pool.length == 2) ) {
+				//let tmpJson = await execFile(chainData.daemon_name, ['q','staking','pool','-o','json','--height', blockVotingEnd, '--node', rpcprovider]);
 		                //console.log(parseJson(tmpJson));
-				let bt = parseJson(tmpJson);
+				//let bt = parseJson(tmpJson);
 				//console.log(bt.bonded_tokens);
 				if (index == 0) {
-					//console.log('1');
-					arrProposalsLast.push({"str":strData,"digit": bt.bonded_tokens});
+					//console.log('staking_pool', staking_pool[0]);
+					arrProposalsLast.push({"str":strData,"digit": staking_pool[index].bonded_tokens});
 					//console.log(arrProposalsLast);
 					//console.log('1');
 				}
-				if (index == 1) {arrProposalsPreLast.push({"str":strData,"digit": bt.bonded_tokens});}
+				if (index == 1) {arrProposalsPreLast.push({"str":strData,"digit": staking_pool[index].bonded_tokens});}
 			}
                 	else
 			{
@@ -373,7 +509,7 @@ async function getProposalsParam(props, blocks) {
 */
 //////////////////////////////////////////////////
 // Опеределяем номер блока в котором окончился пропосал
-		// Берем время сейчас
+/*		// Берем время сейчас
 		let msNow = Date.parse(blocks.currTime); // в милисекундах
 //		console.log("now:", Date.parse());
 //		console.log("currTime:", msNow);
@@ -393,23 +529,17 @@ async function getProposalsParam(props, blocks) {
 		else {
 			blockVotingEnd = blocks.currBlock;
 		}
-
+*/
 //		console.log(blockVotingEnd);
 
 
 		//let tmpJson = await execFile(chainData.daemon_name, ['q','staking','pool','-o','json','--height', blockVotingEnd, '--node', rpcprovider]);
 	        //console.log(parseJson(tmpJson));
 
-		await fillArrLast(i,`tabl="notabl",name_param="pool"`, 1);
+		await fillArrLast(i,`tabl="notabl2",name_param="pool"`, 1);
 
 
-
-// bcnad q staking pool --height 9206276 --node https://rpc.bitcanna.io:443
-
-//{"timeBlock": avgTimeBlock, "currBlock": blockHeight.latest_block_height, "currTime": blockHeight.latest_block_time}
-
-//{"timeBlock": avgTimeBlock, "currBlock": blockHeight.latest_block_height});
-//////////////////////////////////////////////////
+/////////////////////////////////////////////////
 
 		arrProposals.push({"proposalStr": proposalStr, "proposal_id": id});
 	}
@@ -565,6 +695,13 @@ async function getCommunityPool(chaind) {
         //console.log("j1:", tmpJson);
 	return parseJson(tmpJson);
 }
+
+async function getBlockHeight(chaind,height) {
+	const tmpJson = await execFile(chaind, ['q','block',height,'--node', rpcprovider]);    // , '-o','json']);
+        //console.log("j1:", tmpJson);
+	return parseJson(tmpJson);
+}
+
 
 
 
@@ -950,7 +1087,9 @@ const options = {
 
 /////////////////////////////////////////////////////////////////////////////////////
 // Proposals
-	let varProposals = await getProposalsParam(proposals, {"timeBlock": avgTimeBlock, "currBlock": blockHeight.latest_block_height, "currTime": blockHeight.latest_block_time});
+
+        block_param = {"timeBlock": avgTimeBlock, "currBlock": blockHeight.latest_block_height, "currTime": blockHeight.latest_block_time};
+	let varProposals = await getProposalsParam(proposals, block_param);
 //	console.log(varProposals);
    str("# HELP node_proposals Proposals");
           str(`# TYPE node_proposals gauge`);
