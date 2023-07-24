@@ -385,7 +385,15 @@ async function getProposalsParam(props, blocks) {
 	        //let block.timeBlock;
 		// берем текущий блок
 //		console.log("timeBlock:", blocks.timeBlock);
-		blockVotingEnd = Math.trunc(blocks.currBlock - ((msNow - msVotingEnd)/blocks.timeBlock));
+
+		// если пропосал завершился - вычисляем последний блок голосования
+		if (proposalTmp.status == "PROPOSAL_STATUS_PASSED" || proposalTmp.status == "PROPOSAL_STATUS_REJECTED") {
+			blockVotingEnd = Math.trunc(blocks.currBlock - ((msNow - msVotingEnd)/blocks.timeBlock));
+		} 
+		else {
+			blockVotingEnd = blocks.currBlock;
+		}
+
 //		console.log(blockVotingEnd);
 
 
