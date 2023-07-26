@@ -2,7 +2,7 @@ const http = require('http'); const child_process = require('child_process'); co
 
 /////////////////////////////////////////////////////////////////////
 // вот это хозяйство надо будет в файл засунуть - config.json
-const hostname = '0.0.0.0';
+/*const hostname = '0.0.0.0';
 const port = 3010;
 //const linkChain = "https://raw.githubusercontent.com/cosmos/chain-registry/5693e6f9c040da5959250e3beb96b543309195b5/bitcanna/chain.json"; 
 const linkChain = "https://raw.githubusercontent.com/cosmos/chain-registry/master/bitcanna/chain.json";
@@ -12,6 +12,16 @@ const linkAssetList = "https://raw.githubusercontent.com/cosmos/chain-registry/m
 const linkDataCrypto = "https://api.coingecko.com/api/v3/simple/price?ids=bitcanna&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true&precision=fuul";
 // берем рабочую ноду со стороны - можно взять из chain.json - в идеале надо брать программно
 const rpcprovider = "https://rpc.bitcanna.io:443";
+*/
+
+const configData = ReadConfigFile("config");
+
+const hostname = configData.hostname;
+const port = configData.port;
+const linkChain = configData.linkChain;
+const linkAssetList = configData.linkAssetList;
+const linkDataCrypto = configData.linkDataCrypto;
+const rpcprovider = configData.rpcprovider;
 
 /////////////////////////////////////////////////////////////////////
 
@@ -94,6 +104,30 @@ function ConvertDateToUTC(date) {
 	  second: '2-digit'
 	 }
 	 return dateUTC.toLocaleString('en-US',options);
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////
+// Read config.json
+function ReadConfigFile(targetfile) {
+	let configdata;
+	try {
+		const fs = require('fs');
+		// синхронное чтение
+		console.log(`Read file - ${targetfile}.json`);
+		let fileContent = fs.readFileSync(`${targetfile}.json`, 'utf8');
+		//console.log(fileContent);
+		configdata = JSON.parse(fileContent);
+		// После парсинга переменной мы получаем объект, к свойствам которого можно обращаться как обычно, например чере "." 
+		//console.log("1:", chainData.pretty_name);
+		//console.log("2:", chainData.website);
+		return configdata;
+	}
+	catch (err) {
+		console.log(`ERR ReadConfigFile: File ${targetfile}.json is missing`, err);
+		console.log("ERR ReadConfigFile: ", err);
+		return configdata = {};	
+	}
 }
 
 //////////////////////////////////////////////////////////////////
@@ -224,15 +258,15 @@ async function getBlockEndProposal() {
 
 	    while (start <= end) {
 	        let middle = Math.floor((start + end) / 2); // серединный блок
-    		console.log("middle:", middle);
+    		//console.log("middle:", middle);
 		 // читаем вычисленный блок
                 let blockH = await getBlockHeight(chainData.daemon_name,middle);
                 // определяем время блока Height
                 let timeB = blockH.block.header.time;
                 console.log("timeB:", timeB);
                 let msUTCH = Date.parse(timeB);
-                console.log("msUTCH:", msUTCH);
-                console.log("msVotingEnd:", msVotingEnd);
+                //console.log("msUTCH:", msUTCH);
+                //console.log("msVotingEnd:", msVotingEnd);
 	        //if (sortedArray[middle] === key) {
 		if ((middle - start <= 1) || (end - middle <= 1) ) {
 	            // found the key
@@ -246,8 +280,8 @@ async function getBlockEndProposal() {
 	            // search searching to the left
 	            end = middle - 1;
 	        }
-		console.log("start:", start);
-		console.log("end:", end);
+		//console.log("start:", start);
+		//console.log("end:", end);
 	    }
 		// key wasn't found
 	    return 0;
@@ -257,23 +291,23 @@ async function getBlockEndProposal() {
 	for(let i = 0; i < 2; i++){
          let msNow = Date.parse(block_param.currTime); // в милисекундах
 //              console.log("now:", Date.parse());
-              console.log("currTime:", msNow);
-              console.log("currblock:", block_param.currBlock);
+             // console.log("currTime:", msNow);
+             // console.log("currblock:", block_param.currBlock);
                 // берем время окончания голосования
          let msVotingEnd = Date.parse(proposals.proposals[i].voting_end_time); // в милисекундах
-              console.log("endtime:", msVotingEnd);
+              //console.log("endtime:", msVotingEnd);
                 // берем время блока - его длина
                 //let block.timeBlock;
                 // берем текущий блок
-                console.log("timeBlock:", block_param.timeBlock);
+                //console.log("timeBlock:", block_param.timeBlock);
 
                 // если пропосал завершился - вычисляем последний блок голосования
-	 console.log("status:",proposals.proposals[i].status);
+	 //console.log("status:",proposals.proposals[i].status);
  	 //console.log("status:",proposals.proposals[i]);
 	 let blockVotingEnd = 0;
          if (proposals.proposals[i].status == "PROPOSAL_STATUS_PASSED" || proposals.proposals[i].status == "PROPOSAL_STATUS_REJECTED") {
                 blockVotingEnd = Math.trunc(block_param.currBlock - ((msNow - msVotingEnd)/(block_param.timeBlock)));
-		console.log("blockVotingEnd:", blockVotingEnd);
+		//console.log("blockVotingEnd:", blockVotingEnd);
 		let flag = 0;
 
 		// бинарный поиск нужного блока
@@ -576,7 +610,7 @@ function getValidatorsParam(valiki) {
 	let validatorStr = "";
 	let i = 0;
 	let validatorTmp = {};
-	console.log("min", minStake);
+	//console.log("min", minStake);
 	let arrValidators = [];
 	for(let i = 0; i < totalNumValidators; i++) {
 
