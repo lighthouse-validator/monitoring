@@ -1,8 +1,9 @@
 {
 	"hostname": "0.0.0.0",
 	"port": "3010",
-	"linkChain": "https://raw.githubusercontent.com/cosmos/chain-registry/master/bitcanna/chain.json",
-	"linkAssetList": "https://raw.githubusercontent.com/cosmos/chain-registry/master/bitcanna/assetlist.json",
-	"linkDataCrypto": "https://api.coingecko.com/api/v3/simple/price?ids=bitcanna&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true&precision=fuul",
-	"rpcprovider": "https://rpc.bitcanna.io:443"
+	"linkChain": "https://raw.githubusercontent.com/cosmos/chain-registry/master/testnets/lavatestnet/chain.json",
+	"linkAssetList": "https://raw.githubusercontent.com/cosmos/chain-registry/master/testnets/lavatestnet/assetlist.json",
+	"linkDataCrypto": "",
+	"rpcprovider": "https://public-rpc.lavanet.xyz:443",
+	"maxBuffer": 15728640
 }

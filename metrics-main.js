@@ -22,7 +22,7 @@ const linkChain = configData.linkChain;
 const linkAssetList = configData.linkAssetList;
 const linkDataCrypto = configData.linkDataCrypto;
 const rpcprovider = configData.rpcprovider;
-
+const maxBuffer = configData.maxBuffer;
 /////////////////////////////////////////////////////////////////////
 
 
@@ -39,6 +39,8 @@ let staking_pool = [];
 const execFile = util.promisify(
 	require('child_process').execFile
 );
+
+//const maxBuffer = 1024 * 15360; // Установите максимальный размер буфера в байтах, здесь установлен 1 МБ.
 
 
 ////////////////////////////////////////////////////////////////////
@@ -193,15 +195,22 @@ setInterval(
 // Будем переодически запрашивать курс на Coingecko
 
 async function responseApi(url) {
-	let response = await fetch(url);
+	if (url.length > 0)
+	{
+		let response = await fetch(url);
 
-	if (response.ok) { // если HTTP-статус в диапазоне 200-299
-	  // получаем тело ответа 
-	  let json = await response.json();
-	  return json;
-	} else {
-	  console.log("Ошибка HTTP: " + response.status);
-	  return {"error":"${response.status}"};
+		if (response.ok) { // если HTTP-статус в диапазоне 200-299
+		  // получаем тело ответа 
+		  let json = await response.json();
+		  return json;
+		} else {
+		  console.log("Ошибка HTTP: " + response.status);
+		  return {"error":"${response.status}"};
+		}
+	}
+	else {
+	   console.log("URL Coingecko is missing");
+	   return {};
 	}
 
 }
@@ -402,7 +411,7 @@ function parseJson (tmpjson) {
 
 async function getProposals(chaind) {
 //        const tmpJson = await execFile(chaind, ['q','gov','proposals','-o','json','--limit','3','--reverse']);
-        const tmpJson = await execFile(chaind, ['q','gov','proposals','-o','json','--reverse']);
+        const tmpJson = await execFile(chaind, ['q','gov','proposals','-o','json','--reverse'], {maxBuffer});
         return parseJson(tmpJson);
 }
 
@@ -459,12 +468,12 @@ async function getProposalsParam(props, blocks) {
 	for (let i = 0; i < totalNumProposals; i++) {
 		proposalTmp = props.proposals[i];
 		let proposalStr = "";
-/*		if (typeof proposalTmp.proposals_id != "undefined")
-			id = proposalTmp.proposals_id;
+/*		if (typeof proposalTmp.proposal_id != "undefined")
+			id = proposalTmp.proposal_id;
 		if (typeof proposalTmp.id != "undefined")
 			id = proposalTmp.id;
 */
-		let id = proposalTmp.proposals_id || proposalTmp.id;
+		let id = proposalTmp.proposal_id || proposalTmp.id;
 		fillArrLast(i,`tabl="tabl", name_param="Id", param="${id}"`,0);
 		let content = proposalTmp.content || proposalTmp.messages[0].content;
 //		let status = proposalTmp.status;
@@ -597,7 +606,7 @@ async function getProposalsParam(props, blocks) {
 }
 
 async function getValidators(chaind) {
-        const tmpJson = await execFile(chaind, ['q','staking','validators','-o','json','--limit','1000000']);
+        const tmpJson = await execFile(chaind, ['q','staking','validators','-o','json','--limit','1000000'], {maxBuffer});
         return parseJson(tmpJson);
 }
 function getValidatorsParam(valiki) {
@@ -761,6 +770,7 @@ setInterval(
   str("# HELP node_chain_info Chain Info");
   str(`# TYPE node_chain_info gauge`);	
   str(`node_chain_info{chain_id="${chainId}",\
+	 network_type="${chainData.network_type}",\
 	 prettyname="${chainData.pretty_name}",\
 	 bech32prefix="${chainData.bech32_prefix}",\
 	 daemonname="${chainData.daemon_name}",\
